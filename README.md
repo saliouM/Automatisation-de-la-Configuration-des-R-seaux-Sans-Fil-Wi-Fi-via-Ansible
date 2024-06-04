@@ -184,3 +184,135 @@ ansible-playbook -i inventory/hosts.ini playbooks/configure_aruba_wifi.yml
 
 En suivant ces étapes, vous pouvez automatiser la configuration des réseaux sans fil (Wi-Fi) via Ansible. Les playbooks fournis sont des exemples de base et peuvent être étendus pour inclure des configurations plus avancées selon les besoins spécifiques de votre infrastructure. L'utilisation d'Ansible permet de gérer efficacement les configurations et de garantir la cohérence à travers l'ensemble de votre réseau sans fil.
 
+
+--------------------------------------------------------------------
+
+Voici les étapes détaillées pour installer Ansible sur Ubuntu dans VirtualBox et configurer l'interaction avec des équipements Cisco (points d'accès et contrôleur Wi-Fi) :
+
+### Pré-requis
+
+1. **VirtualBox installé** : Assurez-vous d'avoir VirtualBox installé sur votre machine.
+2. **ISO Ubuntu** : Téléchargez la dernière version d'Ubuntu.
+3. **Accès à Internet** : Pour télécharger et installer les paquets nécessaires.
+
+### Étape 1 : Création de la machine virtuelle
+
+1. **Ouvrir VirtualBox et créer une nouvelle VM :**
+    - Cliquez sur "New".
+    - Donnez un nom à la VM (par exemple, "Ubuntu-Ansible").
+    - Sélectionnez "Linux" comme type et "Ubuntu (64-bit)" comme version.
+    - Allouez au moins 2 Go de RAM.
+    - Créez un disque dur virtuel (20 Go est suffisant).
+
+2. **Configurer la machine virtuelle :**
+    - Allez dans "Settings" > "Storage".
+    - Ajoutez le fichier ISO d'Ubuntu comme lecteur optique.
+
+### Étape 2 : Installation d'Ubuntu
+
+1. **Démarrer la VM :**
+    - Cliquez sur "Start" pour démarrer la VM avec le fichier ISO monté.
+    - Suivez les instructions pour installer Ubuntu.
+    - Configurez le réseau pour utiliser le NAT ou le pontage selon vos besoins.
+
+### Étape 3 : Installation d'Ansible
+
+1. **Mettre à jour le système :**
+    ```bash
+    sudo apt update
+    sudo apt upgrade -y
+    ```
+
+2. **Installer Ansible :**
+    ```bash
+    sudo apt install ansible -y
+    ```
+
+### Étape 4 : Configuration de l'inventaire Ansible
+
+1. **Créer un fichier d'inventaire :**
+    ```bash
+    sudo nano /etc/ansible/hosts
+    ```
+
+2. **Ajouter les équipements Cisco à l'inventaire :**
+    ```ini
+    [cisco]
+    ap1 ansible_host=192.168.1.2 ansible_user=admin ansible_password=admin_password
+    ap2 ansible_host=192.168.1.3 ansible_user=admin ansible_password=admin_password
+    controller1 ansible_host=192.168.1.1 ansible_user=admin ansible_password=admin_password
+    ```
+
+### Étape 5 : Installer les collections Ansible nécessaires
+
+1. **Installer la collection Cisco IOS :**
+    ```bash
+    ansible-galaxy collection install cisco.ios
+    ```
+
+### Étape 6 : Création d'un playbook Ansible
+
+1. **Créer un fichier de playbook :**
+    ```bash
+    mkdir -p ~/ansible/playbooks
+    nano ~/ansible/playbooks/configure_cisco_wifi.yml
+    ```
+
+2. **Ajouter les tâches de configuration :**
+    ```yaml
+    - name: Configurer le contrôleur Wi-Fi
+      hosts: controller1
+      gather_facts: false
+      tasks:
+        - name: Configurer le SSID sur le contrôleur
+          cisco.ios.ios_config:
+            lines:
+              - wlan CorporateWiFi 10
+              - security wpa psk set-key ascii StrongPassword
+            provider:
+              host: "{{ ansible_host }}"
+              username: "{{ ansible_user }}"
+              password: "{{ ansible_password }}"
+              authorize: yes
+              auth_pass: "{{ ansible_password }}"
+
+    - name: Configurer les points d'accès
+      hosts: ap1,ap2
+      gather_facts: false
+      tasks:
+        - name: Configurer le SSID sur les points d'accès
+          cisco.ios.ios_config:
+            lines:
+              - dot11 ssid CorporateWiFi
+              - vlan 10
+              - authentication open
+              - authentication key-management wpa
+              - guest-mode
+            provider:
+              host: "{{ ansible_host }}"
+              username: "{{ ansible_user }}"
+              password: "{{ ansible_password }}"
+              authorize: yes
+              auth_pass: "{{ ansible_password }}"
+    ```
+
+### Étape 7 : Exécution du playbook
+
+1. **Exécuter le playbook :**
+    ```bash
+    ansible-playbook -i /etc/ansible/hosts ~/ansible/playbooks/configure_cisco_wifi.yml
+    ```
+
+### Vérification
+
+1. **Vérifier la configuration sur les équipements Cisco :**
+    - Connectez-vous aux équipements et utilisez les commandes Cisco appropriées pour vérifier les configurations appliquées.
+
+### Notes supplémentaires
+
+- **SSH Configuration** : Assurez-vous que les équipements Cisco sont configurés pour permettre les connexions SSH.
+- **Modules spécifiques** : Selon le modèle et la version du logiciel de vos équipements Cisco, vous devrez peut-être ajuster les modules et les commandes dans les playbooks Ansible.
+- **Documentation Ansible** : Consultez la documentation officielle d'Ansible pour les modules Cisco pour des configurations spécifiques et des exemples avancés.
+
+Ce guide couvre les étapes essentielles pour installer et configurer Ansible sur Ubuntu dans VirtualBox et pour interagir avec des équipements Cisco. Assurez-vous d'adapter les configurations et les commandes selon les spécificités de votre environnement réseau.
+
